@@ -179,9 +179,14 @@ body {
   transition: all 0.14s ease;
 }
 
-.gamma-chip:hover {
+.gamma-chip:hover,
+.gamma-chip.active {
   border-color: var(--g2-green-4);
   color: var(--g2-green-4);
+}
+
+.gamma-chip.active {
+  background: rgba(0, 255, 102, 0.14);
 }
 
 /* Main Split Grid */

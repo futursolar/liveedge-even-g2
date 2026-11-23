@@ -510,12 +510,13 @@ export async function fetchOrderbookForScenario(
   );
   const resolvedTokenId = gammaMeta?.tokenId ?? preset.tokenId;
   const resolvedQuestion = gammaMeta?.question ?? preset.question;
+  const resolvedOutcomeLabel = gammaMeta?.outcomeLabel ?? preset.outcomeLabel;
 
   const liveBook = await fetchOrderbookByMarketSummary(
     {
       question: resolvedQuestion,
       slug: preset.marketSlug,
-      outcomeLabel: preset.outcomeLabel,
+      outcomeLabel: resolvedOutcomeLabel,
       tokenId: resolvedTokenId,
       sportCategory:
         preset.gammaTagSlug === 'nba'
@@ -538,7 +539,7 @@ export async function fetchOrderbookForScenario(
     {
       marketSlug: preset.marketSlug,
       question: resolvedQuestion,
-      outcomeLabel: preset.outcomeLabel,
+      outcomeLabel: resolvedOutcomeLabel,
       tokenId: resolvedTokenId,
       volume24hrUsdc: gammaMeta?.volume24hr,
       source: 'SNAPSHOT_FALLBACK',

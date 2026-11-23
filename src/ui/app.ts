@@ -55,6 +55,7 @@ declare global {
 
 export class LiveEdgeStudioApp {
   private scenarioId: MatchScenarioId = 'nba-clutch';
+  private selectedDiscoveredMarket: LiveSportsMarketSummary | null = null;
   private baseBook: NormalizedOrderbook | null = null;
   private activeBook: NormalizedOrderbook | null = null;
   private activePulse: MatchPulseEvent | null = null;
@@ -116,7 +117,6 @@ export class LiveEdgeStudioApp {
       this.render();
     });
 
-    const preset = MARKET_PRESETS[this.scenarioId];
     const [initialBook, discovered] = await Promise.all([
       fetchOrderbookForScenario(this.scenarioId),
       discoverTopSportsMarkets(5),
@@ -125,11 +125,12 @@ export class LiveEdgeStudioApp {
     this.activeBook = this.baseBook;
     this.discoveredMarkets = discovered;
 
+    const meta = this.getActiveMarketDisplayMeta();
     const initialLine = formatIdleScoreBar({
-      sportTag: preset.sportTag,
-      scoreLabel: preset.defaultScoreLabel,
-      clockLabel: preset.defaultClockLabel,
-      outcomeLabel: preset.outcomeLabel,
+      sportTag: meta.sportTag,
+      scoreLabel: meta.defaultScoreLabel,
+      clockLabel: meta.defaultClockLabel,
+      outcomeLabel: meta.outcomeLabel,
       bestAsk: this.activeBook.bestAsk,
     });
 
@@ -305,21 +306,69 @@ export class LiveEdgeStudioApp {
     this.render();
   }
 
+  private formatCompactMatchLabel(question: string): string {
+    const cleaned = question
+      .replace(/^(?:Counter-Strike|League of Legends|Dota 2|Valorant):\s*/i, '')
+      .replace(/\s*\([^)]*\)\s*.*$/, '')
+      .trim();
+    return (cleaned || question).slice(0, 28).trim();
+  }
+
+  private getActiveMarketDisplayMeta(): {
+    sportTag: string;
+    question: string;
+    outcomeLabel: string;
+    defaultScoreLabel: string;
+    defaultClockLabel: string;
+  } {
+    const preset = MARKET_PRESETS[this.scenarioId];
+    const book = this.activeBook ?? this.baseBook;
+    const discovered = this.selectedDiscoveredMarket;
+    const activeQuestion =
+      book?.question || discovered?.question || preset.question;
+    const activeOutcome =
+      book?.outcomeLabel || discovered?.outcomeLabel || preset.outcomeLabel;
+
+    if (discovered) {
+      const volUsdc = book?.volume24hrUsdc ?? discovered.volume24hr;
+      return {
+        sportTag: `${discovered.sportCategory} LIVE`,
+        question: activeQuestion,
+        outcomeLabel: activeOutcome,
+        defaultScoreLabel: this.formatCompactMatchLabel(activeQuestion),
+        defaultClockLabel: `24H $${Math.round(volUsdc / 1000)}K`,
+      };
+    }
+
+    const isCustomLiveSlug =
+      book !== null && book.marketSlug !== preset.marketSlug;
+    return {
+      sportTag: preset.sportTag,
+      question: activeQuestion,
+      outcomeLabel: activeOutcome,
+      defaultScoreLabel: isCustomLiveSlug
+        ? this.formatCompactMatchLabel(activeQuestion)
+        : preset.defaultScoreLabel,
+      defaultClockLabel: preset.defaultClockLabel,
+    };
+  }
+
   public async selectScenario(nextId: MatchScenarioId): Promise<void> {
     this.scenarioId = nextId;
+    this.selectedDiscoveredMarket = null;
     this.activePulse = null;
     this.lastDecision = null;
     this.activePulseIdx = -1;
 
-    const preset = MARKET_PRESETS[nextId];
     this.baseBook = await fetchOrderbookForScenario(nextId);
     this.activeBook = this.baseBook;
 
+    const meta = this.getActiveMarketDisplayMeta();
     const scoreLine = formatIdleScoreBar({
-      sportTag: preset.sportTag,
-      scoreLabel: preset.defaultScoreLabel,
-      clockLabel: preset.defaultClockLabel,
-      outcomeLabel: preset.outcomeLabel,
+      sportTag: meta.sportTag,
+      scoreLabel: meta.defaultScoreLabel,
+      clockLabel: meta.defaultClockLabel,
+      outcomeLabel: meta.outcomeLabel,
       bestAsk: this.activeBook.bestAsk,
     });
 
@@ -333,23 +382,25 @@ export class LiveEdgeStudioApp {
   ): Promise<void> {
     const liveBook = await fetchOrderbookByMarketSummary(market);
     if (!liveBook) return;
+    this.selectedDiscoveredMarket = market;
     this.scenarioId =
       market.sportCategory === 'NFL'
         ? 'nfl-redzone'
         : market.sportCategory === 'ESPORTS'
-          ? 'lol-baron'
-          : 'nba-clutch';
+           ? 'lol-baron'
+           : 'nba-clutch';
     this.baseBook = liveBook;
     this.activeBook = liveBook;
     this.activePulse = null;
     this.lastDecision = null;
     this.activePulseIdx = -1;
 
+    const meta = this.getActiveMarketDisplayMeta();
     const scoreLine = formatIdleScoreBar({
-      sportTag: `${market.sportCategory} LIVE`,
-      scoreLabel: market.question.slice(0, 26),
-      clockLabel: `24H $${Math.round(market.volume24hr / 1000)}K`,
-      outcomeLabel: market.outcomeLabel,
+      sportTag: meta.sportTag,
+      scoreLabel: meta.defaultScoreLabel,
+      clockLabel: meta.defaultClockLabel,
+      outcomeLabel: meta.outcomeLabel,
       bestAsk: liveBook.bestAsk,
     });
     await this.hudController.returnToIdle();
@@ -363,30 +414,37 @@ export class LiveEdgeStudioApp {
   ): Promise<void> {
     if (!this.baseBook) return;
     this.activePulseIdx = idx;
-    const preset = MARKET_PRESETS[this.scenarioId];
 
     const overlayBook = applyPulseMicrostructureOverlay(this.baseBook, {
       adverseWhaleFlowUsdc: template.adverseWhaleFlowUsdc,
       syntheticSpreadOverride: template.syntheticSpreadOverride,
       syntheticDepthScale: template.syntheticDepthScale,
     });
+    this.activeBook = overlayBook;
+    const meta = this.getActiveMarketDisplayMeta();
+    const effectiveTemplate: PulseTemplate = this.selectedDiscoveredMarket
+      ? {
+          ...template,
+          scoreLabel: `${meta.defaultScoreLabel} · ${overlayBook.outcomeLabel}`,
+        }
+      : template;
+
     const pulse = materializePulseEvent(
       this.scenarioId,
-      preset.sportTag,
-      template,
+      meta.sportTag,
+      effectiveTemplate,
       overlayBook.bestAsk
     );
     const decision = evaluateRiskGate(pulse, overlayBook);
 
-    this.activeBook = overlayBook;
     this.activePulse = pulse;
     this.lastDecision = decision;
 
     const updatedAmbient = formatIdleScoreBar({
-      sportTag: preset.sportTag,
+      sportTag: meta.sportTag,
       scoreLabel: pulse.scoreLabel,
       clockLabel: pulse.clockLabel,
-      outcomeLabel: preset.outcomeLabel,
+      outcomeLabel: overlayBook.outcomeLabel,
       bestAsk: overlayBook.bestAsk,
     });
 
@@ -575,7 +633,7 @@ export class LiveEdgeStudioApp {
   }
 
   public render(): void {
-    const preset = MARKET_PRESETS[this.scenarioId];
+    const meta = this.getActiveMarketDisplayMeta();
     const book = this.activeBook;
     const pulse = this.activePulse;
     const decision = this.lastDecision;
@@ -610,13 +668,13 @@ export class LiveEdgeStudioApp {
           </div>
 
           <div class="scenario-tabs">
-            <button class="scenario-btn ${this.scenarioId === 'nba-clutch' ? 'active' : ''}" data-scenario="nba-clutch">
+            <button class="scenario-btn ${!this.selectedDiscoveredMarket && this.scenarioId === 'nba-clutch' ? 'active' : ''}" data-scenario="nba-clutch">
               🏀 NBA Live · Thunder vs Pacers
             </button>
-            <button class="scenario-btn ${this.scenarioId === 'lol-baron' ? 'active' : ''}" data-scenario="lol-baron">
+            <button class="scenario-btn ${!this.selectedDiscoveredMarket && this.scenarioId === 'lol-baron' ? 'active' : ''}" data-scenario="lol-baron">
               ⚔️ Esports · LoL Game 5 Baron
             </button>
-            <button class="scenario-btn ${this.scenarioId === 'nfl-redzone' ? 'active' : ''}" data-scenario="nfl-redzone">
+            <button class="scenario-btn ${!this.selectedDiscoveredMarket && this.scenarioId === 'nfl-redzone' ? 'active' : ''}" data-scenario="nfl-redzone">
               🏈 NFL Live · Bengals vs Commanders
             </button>
           </div>
@@ -642,7 +700,7 @@ export class LiveEdgeStudioApp {
                   .slice(0, 4)
                   .map(
                     (m, idx) =>
-                      `<button class="gamma-chip" data-gamma-idx="${idx}" title="Load live CLOB orderbook for ${this.escapeHtml(m.question)}">[${m.sportCategory}] ${this.escapeHtml(m.question.slice(0, 34))} · $${Math.round(m.volume24hr / 1000)}k</button>`
+                      `<button class="gamma-chip ${this.selectedDiscoveredMarket?.slug === m.slug ? 'active' : ''}" data-gamma-idx="${idx}" title="Load live CLOB orderbook for ${this.escapeHtml(m.question)}">[${m.sportCategory}] ${this.escapeHtml(m.question.slice(0, 34))} · $${Math.round(m.volume24hr / 1000)}k</button>`
                   )
                   .join('')}
               </div>`
@@ -655,13 +713,13 @@ export class LiveEdgeStudioApp {
             <div class="panel-card">
               <div class="panel-header">
                 <span class="panel-title">① Live Match Pulse Engine</span>
-                <span class="panel-meta">${this.escapeHtml(preset.question)}</span>
+                <span class="panel-meta">${this.escapeHtml(meta.question)}</span>
               </div>
 
               <div class="scoreboard-banner">
                 <div>
-                  <div class="score-main">${this.escapeHtml(pulse?.scoreLabel ?? preset.defaultScoreLabel)}</div>
-                  <div class="score-clock">${this.escapeHtml(preset.sportTag)} · ${this.escapeHtml(pulse?.clockLabel ?? preset.defaultClockLabel)} · ${this.escapeHtml(pulse?.headline ?? 'Monitoring live match state...')}</div>
+                  <div class="score-main">${this.escapeHtml(pulse?.scoreLabel ?? meta.defaultScoreLabel)}</div>
+                  <div class="score-clock">${this.escapeHtml(meta.sportTag)} · ${this.escapeHtml(pulse?.clockLabel ?? meta.defaultClockLabel)} · ${this.escapeHtml(pulse?.headline ?? 'Monitoring live match state...')}</div>
                 </div>
                 <div class="edge-kpi-cluster">
                   <div class="kpi-box">
@@ -694,7 +752,7 @@ export class LiveEdgeStudioApp {
 
             <div class="panel-card">
               <div class="panel-header">
-                <span class="panel-title">② Polymarket CLOB L2 Orderbook (${this.escapeHtml(preset.outcomeLabel)})</span>
+                <span class="panel-title">② Polymarket CLOB L2 Orderbook (${this.escapeHtml(meta.outcomeLabel)})</span>
                 <span class="panel-meta">Spread: ${book ? (book.spread * 100).toFixed(1) : '--'}c · Top-3 Ask Depth: $${book ? book.askDepthTop3Usdc.toLocaleString() : '--'}</span>
               </div>
 
