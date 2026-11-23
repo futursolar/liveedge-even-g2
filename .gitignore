@@ -1,0 +1,11 @@
+node_modules/
+dist/
+coverage/
+.vite/
+*.log
+.DS_Store
+.env
+.env.*
+demo/frames/
+demo/*.webm
+demo/raw_*.mp4

@@ -1,0 +1,23 @@
+{
+  "hackathon": "Heads Up: Even Realities Hackathon",
+  "platform": "DoraHacks",
+  "hackathon_url": "https://dorahacks.io/hackathon/heads-up",
+  "project_title": "LiveEdge HUD",
+  "tagline": "Heads-up Polymarket match pulse & 10U risk-gated temple-tap execution for Even G2",
+  "primary_track": "02 · Crypto & DeFi",
+  "secondary_track": "03 · Exchanges & Stocks",
+  "github_url": "https://github.com/futursolar/liveedge-even-g2",
+  "demo_video_path": "demo/liveedge-even-g2-demo.mp4",
+  "ehpk_package_path": "release/liveedge-hud.ehpk",
+  "tech_stack": [
+    "Even Realities G2",
+    "@evenrealities/even_hub_sdk",
+    "@evenrealities/evenhub-cli",
+    "TypeScript",
+    "Vite",
+    "Polymarket Gamma & CLOB API",
+    "EIP-712"
+  ],
+  "short_summary": "LiveEdge HUD lets sports and esports fans stay immersed in the live match while wearing Even Realities G2 smart glasses. It streams public read-only Polymarket CLOB L2 orderbooks in the background, silently blocks wide-spread or whale-toxic noise, and pops a 3-line 576x288 green HUD card only when a match swing creates a high-conviction lag edge — executable in one temple Double-Tap under a hard 10 USDC sandbox risk cap.",
+  "detailed_architecture_markdown": "## Problem\nDuring decisive live sports and esports moments (an NBA clutch 8-0 run, a League of Legends Baron steal, or an NFL redzone turnover), looking down to unlock a phone, check CLOB orderbook spread, and size an order takes 15+ seconds — missing both the live play and the repricing window.\n\n## Solution: LiveEdge HUD on Even Realities G2\nLiveEdge HUD turns the Even G2 dual 576x288 green micro-LED display into a zero-occlusion, fail-closed prediction market execution HUD built natively on `@evenrealities/even_hub_sdk` v0.0.16:\n\n1. **Zero-Occlusion Ambient Viewing (`IDLE_SCOREBAR`)**: Renders a single dim (`textColor: 2`) top status line while keeping the center optical waveguide 100% clear.\n2. **Live Polymarket Gamma + CLOB L2 Engine**: Discovers live active NBA, NFL, and Esports markets from Polymarket Gamma (`/events` + `/markets`) and fetches real L2 orderbooks (`/book`), sorting wire bids/asks best-first and simulating exact multi-rung VWAP fills.\n3. **Fail-Closed Risk Gate (Silent Block)**: Automatically suppresses HUD popups whenever stake/risk parameters are invalid, bid-ask spread > 4.0c, executable ask depth < $25 USDC, Pre-Headline Counter-Whale flow >= $1,000, or lag edge < +4.5c, while enforcing a hard 10.00 USDC per-trade risk cap.\n4. **Blind Temple & Even R1 Ring Gestures**: Supports `DOUBLE_CLICK_EVENT` (Double-Tap) to confirm a 10 USDC sandbox FAK/Post-Only order with instant HUD VWAP + `CTFExchange.sol`-compliant EIP-712 (`Order.side = uint8(0)`) digest receipt, `SCROLL_TOP_EVENT` / `SCROLL_BOTTOM_EVENT` (Swipe) to dismiss, `CLICK_EVENT` (Tap) to toggle FAK vs Post-Only, and `shutDownPageContainer(1)` QA lifecycle compliance.\n5. **Money-Safe Design**: Uses 100% public read-only Polymarket orderbook data + zero-key EIP-712 sandbox execution (`SANDBOX_SIM`) with zero real funds at risk."
+}
